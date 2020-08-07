@@ -491,6 +491,15 @@ void SumElemStressesToNodeForces( const Real_t B[][8],
                                   const Real_t stress_zz,
                                   Real_t* fx, Real_t* fy, Real_t* fz )
 {
+
+   auto lambda = [=](auto i) {
+      fx[i] = -( stress_xx * B[0][i] );
+      fy[i] = -( stress_yy * B[1][i]  );
+      fz[i] = -( stress_zz * B[2][i] );
+   };
+
+   auto knl = RAJA::make_forall<RAJA::loop_exec>(RAJA::RangeSegment(0,8), lambda);
+
    for(Index_t i = 0; i < 8; i++) {
       fx[i] = -( stress_xx * B[0][i] );
       fy[i] = -( stress_yy * B[1][i]  );
@@ -513,7 +522,7 @@ void IntegrateStressForElems( Domain* domain,
 
   // loop over all elements
   RAJA::forall<elem_exec_policy>(domain->getElemISet(),
-     [=] LULESH_DEVICE (int k) {
+     [=] LULESH_DEVICE (auto k) {
     const Index_t* const elemToNode = domain->nodelist(k);
     Real_t B[3][8] __attribute__((aligned(32))) ;// shape function derivatives
     Real_t x_local[8] __attribute__((aligned(32))) ;
@@ -553,7 +562,9 @@ void IntegrateStressForElems( Domain* domain,
        domain->fz(gnode) += fz_local[lnode];
     }
 #endif
-  } );
+  } );//knl
+
+  
 
 #if defined(OMP_FINE_SYNC)
   RAJA::forall<node_exec_policy>(domain->getNodeISet(),
@@ -572,7 +583,9 @@ void IntegrateStressForElems( Domain* domain,
      domain->fx(gnode) = fx_sum ;
      domain->fy(gnode) = fy_sum ;
      domain->fz(gnode) = fz_sum ;
-  } );
+  } ); //knl2
+
+  
 
   elemMemPool.release(&fz_elem) ;
   elemMemPool.release(&fy_elem) ;
@@ -948,7 +961,7 @@ void CalcHourglassControlForElems(Domain* domain,
 
    /* start loop over elements */
    RAJA::forall<elem_exec_policy>(domain->getElemISet(),
-        [=] LULESH_DEVICE (int i) {
+        [=] LULESH_DEVICE (auto i) {
 #if 1
       /* This variant makes overall runtime 2% faster on CPU */
       Real_t  x1[8],  y1[8],  z1[8] ;
@@ -984,7 +997,8 @@ void CalcHourglassControlForElems(Domain* domain,
 
       minvol.min(domain->v(i));
 
-   } );
+   } ); // knl1
+   
 
    /* Do a check for negative volumes */
    if ( Real_t(minvol) <= Real_t(0.0) ) {
@@ -1963,7 +1977,7 @@ void CalcPressureForElems(Real_t* p_new, Real_t* bvc,
                           Real_t* compression, Real_t *vnewc,
                           Real_t pmin,
                           Real_t p_cut, Real_t eosvmax,
-                          LULESH_ISET& regISet)
+                          LULESH_ELEMSET& regISet)
 {
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
@@ -1991,42 +2005,42 @@ void CalcPressureForElems(Real_t* p_new, Real_t* bvc,
 
 RAJA_STORAGE
 void CalcEnergyForElems(Domain* domain,
-                        Real_t* p_new, Real_t* e_new, Real_t* q_new,
-                        Real_t* bvc, Real_t* pbvc,
-                        Real_t* p_old,
-                        Real_t* compression, Real_t* compHalfStep,
-                        Real_t* vnewc, Real_t* work, Real_t *pHalfStep,
+                        ViewType p_new, ViewType e_new, ViewType q_new,
+                        ViewType bvc, ViewType pbvc,
+                        ViewType p_old,
+                        ViewType compression, ViewType compHalfStep,
+                        ViewType vnewc, ViewType work, ViewType pHalfStep,
                         Real_t pmin, Real_t p_cut, Real_t  e_cut,
                         Real_t q_cut, Real_t emin,
                         Real_t rho0,
                         Real_t eosvmax,
-                        LULESH_ISET& regISet)
+                        LULESH_ELEMSET& regISet)
 {
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
-      e_new[ielem] = domain->e(ielem)
-         - Real_t(0.5) * domain->delv(ielem) * (p_old[ielem] + domain->q(ielem))
-         + Real_t(0.5) * work[ielem];
+      e_new(ielem) = domain->e(ielem)
+         - Real_t(0.5) * domain->delv(ielem) * (p_old(ielem) + domain->q(ielem))
+         + Real_t(0.5) * work(ielem);
 
-      if (e_new[ielem]  < emin ) {
-         e_new[ielem] = emin ;
+      if (e_new(ielem)  < emin ) {
+         e_new(ielem) = emin ;
       }
    } );
 
-   CalcPressureForElems(pHalfStep, bvc, pbvc, e_new, compHalfStep, vnewc,
+   CalcPressureForElems(pHalfStep.data, bvc.data, pbvc.data, e_new.data, compHalfStep.data, vnewc.data,
                         pmin, p_cut, eosvmax, 
                         regISet);
 
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
-      Real_t vhalf = Real_t(1.) / (Real_t(1.) + compHalfStep[ielem]) ;
+      Real_t vhalf = Real_t(1.) / (Real_t(1.) + compHalfStep(ielem)) ;
 
       if ( domain->delv(ielem) > Real_t(0.) ) {
-         q_new[ielem] /* = domain->qq(ielem) = domain->ql(ielem) */ = Real_t(0.);
+         q_new(ielem) /* = domain->qq(ielem) = domain->ql(ielem) */ = Real_t(0.);
       }
       else {
-         Real_t ssc = ( pbvc[ielem] * e_new[ielem]
-                 + vhalf * vhalf * bvc[ielem] * pHalfStep[ielem] ) / rho0 ;
+         Real_t ssc = ( pbvc(ielem) * e_new(ielem)
+                 + vhalf * vhalf * bvc(ielem) * pHalfStep(ielem) ) / rho0 ;
 
          if ( ssc <= Real_t(.1111111e-36) ) {
             ssc = Real_t(.3333333e-18) ;
@@ -2034,27 +2048,27 @@ void CalcEnergyForElems(Domain* domain,
             ssc = SQRT(ssc) ;
          }
 
-         q_new[ielem] = (ssc*domain->ql(ielem) + domain->qq(ielem)) ;
+         q_new(ielem) = (ssc*domain->ql(ielem) + domain->qq(ielem)) ;
       }
 
-      e_new[ielem] = e_new[ielem] + Real_t(0.5) * domain->delv(ielem)
-         * (  Real_t(3.0)*(p_old[ielem]     + domain->q(ielem))
-              - Real_t(4.0)*(pHalfStep[ielem] + q_new[ielem])) ;
+      e_new(ielem) = e_new(ielem) + Real_t(0.5) * domain->delv(ielem)
+         * (  Real_t(3.0)*(p_old(ielem)     + domain->q(ielem))
+              - Real_t(4.0)*(pHalfStep(ielem) + q_new(ielem))) ;
    } );
 
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
-      e_new[ielem] += Real_t(0.5) * work[ielem];
+      e_new(ielem) += Real_t(0.5) * work(ielem);
 
-      if (FABS(e_new[ielem]) < e_cut) {
-         e_new[ielem] = Real_t(0.)  ;
+      if (FABS(e_new(ielem)) < e_cut) {
+         e_new(ielem) = Real_t(0.)  ;
       }
-      if (     e_new[ielem]  < emin ) {
-         e_new[ielem] = emin ;
+      if (     e_new(ielem)  < emin ) {
+         e_new(ielem) = emin ;
       }
    } );
 
-   CalcPressureForElems(p_new, bvc, pbvc, e_new, compression, vnewc,
+   CalcPressureForElems(p_new.data, bvc.data, pbvc.data, e_new.data, compression.data, vnewc.data,
                         pmin, p_cut, eosvmax, 
                         regISet);
 
@@ -2067,8 +2081,8 @@ void CalcEnergyForElems(Domain* domain,
          q_tilde = Real_t(0.) ;
       }
       else {
-         Real_t ssc = ( pbvc[ielem] * e_new[ielem]
-                 + vnewc[ielem] * vnewc[ielem] * bvc[ielem] * p_new[ielem] ) / rho0 ;
+         Real_t ssc = ( pbvc(ielem) * e_new(ielem)
+                 + vnewc(ielem) * vnewc(ielem) * bvc(ielem) * p_new(ielem) ) / rho0 ;
 
          if ( ssc <= Real_t(.1111111e-36) ) {
             ssc = Real_t(.3333333e-18) ;
@@ -2079,27 +2093,27 @@ void CalcEnergyForElems(Domain* domain,
          q_tilde = (ssc*domain->ql(ielem) + domain->qq(ielem)) ;
       }
 
-      e_new[ielem] -= (  Real_t(7.0)*(p_old[ielem]     + domain->q(ielem))
-                       - Real_t(8.0)*(pHalfStep[ielem] + q_new[ielem])
-                       + (p_new[ielem] + q_tilde)) * domain->delv(ielem)*sixth ;
+      e_new(ielem) -= (  Real_t(7.0)*(p_old(ielem)     + domain->q(ielem))
+                       - Real_t(8.0)*(pHalfStep(ielem) + q_new(ielem))
+                       + (p_new(ielem) + q_tilde)) * domain->delv(ielem)*sixth ;
 
-      if (FABS(e_new[ielem]) < e_cut) {
-         e_new[ielem] = Real_t(0.)  ;
+      if (FABS(e_new(ielem)) < e_cut) {
+         e_new(ielem) = Real_t(0.)  ;
       }
-      if (     e_new[ielem]  < emin ) {
-         e_new[ielem] = emin ;
+      if (     e_new(ielem)  < emin ) {
+         e_new(ielem) = emin ;
       }
    } );
 
-   CalcPressureForElems(p_new, bvc, pbvc, e_new, compression, vnewc,
+    CalcPressureForElems(p_new.data, bvc.data, pbvc.data, e_new.data, compression.data, vnewc.data,
                         pmin, p_cut, eosvmax, 
                         regISet);
 
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
       if ( domain->delv(ielem) <= Real_t(0.) ) {
-         Real_t ssc = ( pbvc[ielem] * e_new[ielem]
-            + vnewc[ielem] * vnewc[ielem] * bvc[ielem] * p_new[ielem] ) / rho0;
+         Real_t ssc = ( pbvc(ielem) * e_new(ielem)
+            + vnewc(ielem) * vnewc(ielem) * bvc(ielem) * p_new(ielem) ) / rho0;
 
          if ( ssc <= Real_t(.1111111e-36) ) {
             ssc = Real_t(.3333333e-18) ;
@@ -2107,9 +2121,9 @@ void CalcEnergyForElems(Domain* domain,
             ssc = SQRT(ssc) ;
          }
 
-         q_new[ielem] = (ssc*domain->ql(ielem) + domain->qq(ielem)) ;
+         q_new(ielem) = (ssc*domain->ql(ielem) + domain->qq(ielem)) ;
 
-         if (FABS(q_new[ielem]) < q_cut) q_new[ielem] = Real_t(0.) ;
+         if (FABS(q_new(ielem)) < q_cut) q_new(ielem) = Real_t(0.) ;
       }
    } );
 
@@ -2123,7 +2137,7 @@ void CalcSoundSpeedForElems(Domain* domain,
                             Real_t *vnewc, Real_t rho0, Real_t *enewc,
                             Real_t *pnewc, Real_t *pbvc,
                             Real_t *bvc, Real_t RAJA_UNUSED_ARG(ss4o3),
-                            LULESH_ISET& regISet)
+                            LULESH_ELEMSET& regISet)
 {
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
@@ -2160,49 +2174,66 @@ void EvalEOSForElems(Domain* domain,
    Real_t emin    = domain->emin() ;
    Real_t rho0    = domain->refdens() ;
 
-   LULESH_ISET& regISet = domain->getRegionISet(reg_num);
+   LULESH_ELEMSET& regISet = domain->getRegionISet(reg_num);
+
+   ViewType vnewc_view(vnewc, domain->numElem());
+   ViewType p_old_view(p_old, domain->numElem()); 
+   ViewType compression_view(compression, domain->numElem()); 
+   ViewType compHalfStep_view(compHalfStep, domain->numElem()); 
+   ViewType work_view(work, domain->numElem()); 
+   ViewType p_new_view(p_new, domain->numElem()); 
+   ViewType e_new_view(e_new, domain->numElem()); 
+   ViewType q_new_view(q_new, domain->numElem()); 
+   ViewType bvc_view(bvc, domain->numElem()); 
+   ViewType pbvc_view(pbvc, domain->numElem()); 
+   ViewType pHalfStep_view(pHalfStep, domain->numElem()); 
+
+   auto knl1 = RAJA::make_forall<RAJA::loop_exec>(regISet, [=](auto i) {
+      p_old_view(i) = domain->p(i);
+      work_view(i) = Real_t(0.0);
+   });
+
+   auto knl2 = RAJA::make_forall<mat_exec_policy>(regISet,
+           [=] LULESH_DEVICE (auto ielem) {
+         compression_view(ielem) = Real_t(1.) / vnewc_view(ielem) - Real_t(1.);
+         compHalfStep_view(ielem) = Real_t(1.) / (vnewc_view(ielem) - domain->delv(ielem) * Real_t(.5)) - Real_t(1.);
+      } );
  
+   auto knl3 = RAJA::make_forall<mat_exec_policy>(regISet,
+              [=] LULESH_DEVICE (auto ielem) {
+            if (vnewc_view(ielem) <= eosvmin) { /* impossible due to calling func? */
+               compHalfStep_view(ielem) = compression_view(ielem) ;
+            }
+         } );
+
+   auto knl4 = RAJA::make_forall<mat_exec_policy>(regISet,
+              [=] LULESH_DEVICE (auto ielem) {
+            if (vnewc_view(ielem) >= eosvmax) { /* impossible due to calling func? */
+               p_old_view(ielem)        = Real_t(0.) ;
+               compression_view(ielem)  = Real_t(0.) ;
+               compHalfStep_view(ielem) = Real_t(0.) ;
+            }
+         } );
+
+
    //loop to add load imbalance based on region number 
    for(Int_t j = 0; j < rep; j++) {
       /* compress data, minimal set */
-      RAJA::forall<mat_exec_policy>(regISet,
-           [=] LULESH_DEVICE (Index_t ielem) {
-         p_old[ielem] = domain->p(ielem) ;
-         work[ielem] = Real_t(0.0) ;
-      } );
 
-      RAJA::forall<mat_exec_policy>(regISet,
-           [=] LULESH_DEVICE (Index_t ielem) {
-         Real_t vchalf ;
-         compression[ielem] = Real_t(1.) / vnewc[ielem] - Real_t(1.);
-         vchalf = vnewc[ielem] - domain->delv(ielem) * Real_t(.5);
-         compHalfStep[ielem] = Real_t(1.) / vchalf - Real_t(1.);
-      } );
-
+      knl1();
+      knl2();
       /* Check for v > eosvmax or v < eosvmin */
       if ( eosvmin != Real_t(0.) ) {
-         RAJA::forall<mat_exec_policy>(regISet,
-              [=] LULESH_DEVICE (Index_t ielem) {
-            if (vnewc[ielem] <= eosvmin) { /* impossible due to calling func? */
-               compHalfStep[ielem] = compression[ielem] ;
-            }
-         } );
+         knl3();         
       }
 
       if ( eosvmax != Real_t(0.) ) {
-         RAJA::forall<mat_exec_policy>(regISet,
-              [=] LULESH_DEVICE (Index_t ielem) {
-            if (vnewc[ielem] >= eosvmax) { /* impossible due to calling func? */
-               p_old[ielem]        = Real_t(0.) ;
-               compression[ielem]  = Real_t(0.) ;
-               compHalfStep[ielem] = Real_t(0.) ;
-            }
-         } );
+         knl4();
       }
 
-      CalcEnergyForElems(domain, p_new, e_new, q_new, bvc, pbvc,
-                         p_old, compression, compHalfStep,
-                         vnewc, work, pHalfStep, pmin,
+      CalcEnergyForElems(domain, p_new_view, e_new_view, q_new_view, bvc_view, pbvc_view,
+                         p_old_view, compression_view, compHalfStep_view,
+                         vnewc_view, work_view, pHalfStep_view, pmin,
                          p_cut, e_cut, q_cut, emin,
                          rho0, eosvmax,
                          regISet);
