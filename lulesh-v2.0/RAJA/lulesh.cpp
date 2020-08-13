@@ -2247,6 +2247,8 @@ void EvalEOSForElems(Domain* domain,
                          rho0, eosvmax,
                          regISet);
 
+      auto fused_knl = RAJA::fuse(knl_tuple);
+
       camp::get<0>(knl_tuple)();
       camp::get<1>(knl_tuple)();
       camp::get<2>(knl_tuple)();
