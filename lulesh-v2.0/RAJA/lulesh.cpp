@@ -2230,7 +2230,7 @@ void EvalEOSForElems(Domain* domain,
                          rho0, eosvmax,
                          regISet);
 
-   auto fused_knl = RAJA::fuse(knl_tuple);
+   static auto fused_knl = RAJA::fuse(knl_tuple);
 
    //loop to add load imbalance based on region number 
    for(Int_t j = 0; j < rep; j++) {
@@ -2247,8 +2247,8 @@ void EvalEOSForElems(Domain* domain,
          knl4();
       }
 
-      fused_knl();
-      /* 
+      //fused_knl();
+      
       camp::get<0>(knl_tuple)();
       camp::get<1>(knl_tuple)();
       camp::get<2>(knl_tuple)();
@@ -2260,7 +2260,7 @@ void EvalEOSForElems(Domain* domain,
       camp::get<8>(knl_tuple)();
       camp::get<9>(knl_tuple)();
       camp::get<10>(knl_tuple)();
-      */
+      
    }
 
    RAJA::forall<mat_exec_policy>(regISet,
