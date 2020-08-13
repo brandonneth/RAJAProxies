@@ -1970,41 +1970,42 @@ void CalcQForElems(Domain* domain)
 }
 
 /******************************************/
-
 RAJA_STORAGE
-void CalcPressureForElems(Real_t* p_new, Real_t* bvc,
-                          Real_t* pbvc, Real_t* e_old,
-                          Real_t* compression, Real_t *vnewc,
+auto CalcPressureForElems(ViewType p_new, ViewType bvc,
+                          ViewType pbvc, ViewType e_old,
+                          ViewType compression, ViewType vnewc,
                           Real_t pmin,
                           Real_t p_cut, Real_t eosvmax,
                           LULESH_ELEMSET& regISet)
 {
-   RAJA::forall<mat_exec_policy>(regISet,
+   auto pknl1 = RAJA::make_forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
       Real_t const  c1s = Real_t(2.0)/Real_t(3.0) ;
-      bvc[ielem] = c1s * (compression[ielem] + Real_t(1.));
-      pbvc[ielem] = c1s;
+      bvc(ielem) = c1s * (compression(ielem) + Real_t(1.));
+      pbvc(ielem) = c1s;
    } );
 
-   RAJA::forall<mat_exec_policy>(regISet,
+   auto pknl2 = RAJA::make_forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
-      p_new[ielem] = bvc[ielem] * e_old[ielem] ;
+      p_new(ielem) = bvc(ielem) * e_old(ielem) ;
 
-      if    (FABS(p_new[ielem]) <  p_cut   )
-         p_new[ielem] = Real_t(0.0) ;
+      if    (FABS(p_new(ielem)) <  p_cut   )
+         p_new(ielem) = Real_t(0.0) ;
 
-      if    ( vnewc[ielem] >= eosvmax ) /* impossible condition here? */
-         p_new[ielem] = Real_t(0.0) ;
+      if    ( vnewc(ielem) >= eosvmax ) /* impossible condition here? */
+         p_new(ielem) = Real_t(0.0) ;
 
-      if    (p_new[ielem]       <  pmin)
-         p_new[ielem]   = pmin ;
+      if    (p_new(ielem)       <  pmin)
+         p_new(ielem)   = pmin ;
    } );
+
+   return RAJA::make_tuple(pknl1,pknl2);
 }
 
 /******************************************/
 
 RAJA_STORAGE
-void CalcEnergyForElems(Domain* domain,
+auto CalcEnergyForElems(Domain* domain,
                         ViewType p_new, ViewType e_new, ViewType q_new,
                         ViewType bvc, ViewType pbvc,
                         ViewType p_old,
@@ -2016,7 +2017,7 @@ void CalcEnergyForElems(Domain* domain,
                         Real_t eosvmax,
                         LULESH_ELEMSET& regISet)
 {
-   RAJA::forall<mat_exec_policy>(regISet,
+   auto eknl1 = RAJA::make_forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
       e_new(ielem) = domain->e(ielem)
          - Real_t(0.5) * domain->delv(ielem) * (p_old(ielem) + domain->q(ielem))
@@ -2027,11 +2028,11 @@ void CalcEnergyForElems(Domain* domain,
       }
    } );
 
-   CalcPressureForElems(pHalfStep.data, bvc.data, pbvc.data, e_new.data, compHalfStep.data, vnewc.data,
+   auto pknls1 = CalcPressureForElems(pHalfStep, bvc, pbvc, e_new, compHalfStep, vnewc,
                         pmin, p_cut, eosvmax, 
                         regISet);
 
-   RAJA::forall<mat_exec_policy>(regISet,
+   const auto eknl2 = RAJA::make_forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
       Real_t vhalf = Real_t(1.) / (Real_t(1.) + compHalfStep(ielem)) ;
 
@@ -2056,7 +2057,7 @@ void CalcEnergyForElems(Domain* domain,
               - Real_t(4.0)*(pHalfStep(ielem) + q_new(ielem))) ;
    } );
 
-   RAJA::forall<mat_exec_policy>(regISet,
+   const auto eknl3 = RAJA::make_forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
       e_new(ielem) += Real_t(0.5) * work(ielem);
 
@@ -2068,11 +2069,11 @@ void CalcEnergyForElems(Domain* domain,
       }
    } );
 
-   CalcPressureForElems(p_new.data, bvc.data, pbvc.data, e_new.data, compression.data, vnewc.data,
+   auto pknls2 = CalcPressureForElems(p_new, bvc, pbvc, e_new, compression, vnewc,
                         pmin, p_cut, eosvmax, 
                         regISet);
 
-   RAJA::forall<mat_exec_policy>(regISet,
+   const auto eknl4 = RAJA::make_forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
       const Real_t sixth = Real_t(1.0) / Real_t(6.0) ;
       Real_t q_tilde ;
@@ -2105,11 +2106,11 @@ void CalcEnergyForElems(Domain* domain,
       }
    } );
 
-    CalcPressureForElems(p_new.data, bvc.data, pbvc.data, e_new.data, compression.data, vnewc.data,
+   const auto pknls3 = CalcPressureForElems(p_new, bvc, pbvc, e_new, compression, vnewc,
                         pmin, p_cut, eosvmax, 
                         regISet);
 
-   RAJA::forall<mat_exec_policy>(regISet,
+   const auto eknl5 = RAJA::make_forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
       if ( domain->delv(ielem) <= Real_t(0.) ) {
          Real_t ssc = ( pbvc(ielem) * e_new(ielem)
@@ -2127,7 +2128,15 @@ void CalcEnergyForElems(Domain* domain,
       }
    } );
 
-   return ;
+
+   return RAJA::tuple_cat(
+     RAJA::make_tuple(eknl1),
+     pknls1,
+     RAJA::make_tuple(eknl2, eknl3),
+     pknls2,
+     RAJA::make_tuple(eknl4),
+     pknls3,
+     RAJA::make_tuple(eknl5));
 }
 
 /******************************************/
@@ -2231,12 +2240,24 @@ void EvalEOSForElems(Domain* domain,
          knl4();
       }
 
-      CalcEnergyForElems(domain, p_new_view, e_new_view, q_new_view, bvc_view, pbvc_view,
+      auto knl_tuple = CalcEnergyForElems(domain, p_new_view, e_new_view, q_new_view, bvc_view, pbvc_view,
                          p_old_view, compression_view, compHalfStep_view,
                          vnewc_view, work_view, pHalfStep_view, pmin,
                          p_cut, e_cut, q_cut, emin,
                          rho0, eosvmax,
                          regISet);
+
+      camp::get<0>(knl_tuple)();
+      camp::get<1>(knl_tuple)();
+      camp::get<2>(knl_tuple)();
+      camp::get<3>(knl_tuple)();
+      camp::get<4>(knl_tuple)();
+      camp::get<5>(knl_tuple)();
+      camp::get<6>(knl_tuple)();
+      camp::get<7>(knl_tuple)();
+      camp::get<8>(knl_tuple)();
+      camp::get<9>(knl_tuple)();
+      camp::get<10>(knl_tuple)();
    }
 
    RAJA::forall<mat_exec_policy>(regISet,

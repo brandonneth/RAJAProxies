@@ -7,7 +7,7 @@
 using LULESH_ISET = RAJA::TypedIndexSet<RAJA::RangeSegment,
                                         RAJA::ListSegment,
                                         RAJA::RangeStrideSegment>;
-
+using LULESH_ELEMSET = RAJA::RangeSegment;
 #include "luleshPolicy.hpp"
 #include "luleshMemory.hpp"
 
