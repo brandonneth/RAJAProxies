@@ -2002,6 +2002,141 @@ auto CalcPressureForElems(ViewType p_new, ViewType bvc,
    return RAJA::make_tuple(pknl1,pknl2);
 }
 
+
+RAJA_STORAGE
+auto CalcEnergyForElemsFusedLambda(Domain* domain,
+                        ViewType p_new, ViewType e_new, ViewType q_new,
+                        ViewType bvc, ViewType pbvc,
+                        ViewType p_old,
+                        ViewType compression, ViewType compHalfStep,
+                        ViewType vnewc, ViewType work, ViewType pHalfStep,
+                        Real_t pmin, Real_t p_cut, Real_t  e_cut,
+                        Real_t q_cut, Real_t emin,
+                        Real_t rho0,
+                        Real_t eosvmax,
+                        LULESH_ELEMSET& regISet)
+{
+   auto eknl1 =         [=] LULESH_DEVICE (int ielem) {  
+      e_new(ielem) = domain->e(ielem)
+         - Real_t(0.5) * domain->delv(ielem) * (p_old(ielem) + domain->q(ielem))
+         + Real_t(0.5) * work(ielem);
+
+      if (e_new(ielem)  < emin ) {
+         e_new(ielem) = emin ;
+      }
+   } ;
+
+   auto pknls1 = CalcPressureForElemsLambdas(pHalfStep, bvc, pbvc, e_new, compHalfStep, vnewc,
+                        pmin, p_cut, eosvmax, 
+                        regISet);
+
+   const auto eknl2 =         [=] LULESH_DEVICE (int ielem) {  
+      Real_t vhalf = Real_t(1.) / (Real_t(1.) + compHalfStep(ielem)) ;
+
+      if ( domain->delv(ielem) > Real_t(0.) ) {
+         q_new(ielem) /* = domain->qq(ielem) = domain->ql(ielem) */ = Real_t(0.);
+      }
+      else {
+         Real_t ssc = ( pbvc(ielem) * e_new(ielem)
+                 + vhalf * vhalf * bvc(ielem) * pHalfStep(ielem) ) / rho0 ;
+
+         if ( ssc <= Real_t(.1111111e-36) ) {
+            ssc = Real_t(.3333333e-18) ;
+         } else {
+            ssc = SQRT(ssc) ;
+         }
+
+         q_new(ielem) = (ssc*domain->ql(ielem) + domain->qq(ielem)) ;
+      }
+
+      e_new(ielem) = e_new(ielem) + Real_t(0.5) * domain->delv(ielem)
+         * (  Real_t(3.0)*(p_old(ielem)     + domain->q(ielem))
+              - Real_t(4.0)*(pHalfStep(ielem) + q_new(ielem))) ;
+   };
+
+   const auto eknl3 =        [=] LULESH_DEVICE (int ielem) {  
+      e_new(ielem) += Real_t(0.5) * work(ielem);
+
+      if (FABS(e_new(ielem)) < e_cut) {
+         e_new(ielem) = Real_t(0.)  ;
+      }
+      if (     e_new(ielem)  < emin ) {
+         e_new(ielem) = emin ;
+      }
+   } ;
+
+   auto pknls2 = CalcPressureForElemsLambdas(p_new, bvc, pbvc, e_new, compression, vnewc,
+                        pmin, p_cut, eosvmax, 
+                        regISet);
+
+   const auto eknl4 =         [=] LULESH_DEVICE (int ielem) {  
+      const Real_t sixth = Real_t(1.0) / Real_t(6.0) ;
+      Real_t q_tilde ;
+
+      if (domain->delv(ielem) > Real_t(0.)) {
+         q_tilde = Real_t(0.) ;
+      }
+      else {
+         Real_t ssc = ( pbvc(ielem) * e_new(ielem)
+                 + vnewc(ielem) * vnewc(ielem) * bvc(ielem) * p_new(ielem) ) / rho0 ;
+
+         if ( ssc <= Real_t(.1111111e-36) ) {
+            ssc = Real_t(.3333333e-18) ;
+         } else {
+            ssc = SQRT(ssc) ;
+         }
+
+         q_tilde = (ssc*domain->ql(ielem) + domain->qq(ielem)) ;
+      }
+
+      e_new(ielem) -= (  Real_t(7.0)*(p_old(ielem)     + domain->q(ielem))
+                       - Real_t(8.0)*(pHalfStep(ielem) + q_new(ielem))
+                       + (p_new(ielem) + q_tilde)) * domain->delv(ielem)*sixth ;
+
+      if (FABS(e_new(ielem)) < e_cut) {
+         e_new(ielem) = Real_t(0.)  ;
+      }
+      if (     e_new(ielem)  < emin ) {
+         e_new(ielem) = emin ;
+      }
+   } ;
+
+   const auto pknls3 = CalcPressureForElemsLambdas(p_new, bvc, pbvc, e_new, compression, vnewc,
+                        pmin, p_cut, eosvmax, 
+                        regISet);
+
+   const auto eknl5 =        [=] LULESH_DEVICE (int ielem) {
+      if ( domain->delv(ielem) <= Real_t(0.) ) {
+         Real_t ssc = ( pbvc(ielem) * e_new(ielem)
+            + vnewc(ielem) * vnewc(ielem) * bvc(ielem) * p_new(ielem) ) / rho0;
+
+         if ( ssc <= Real_t(.1111111e-36) ) {
+            ssc = Real_t(.3333333e-18) ;
+         } else {
+            ssc = SQRT(ssc) ;
+         }
+
+         q_new(ielem) = (ssc*domain->ql(ielem) + domain->qq(ielem)) ;
+
+         if (FABS(q_new(ielem)) < q_cut) q_new(ielem) = Real_t(0.) ;
+      }
+   } ;
+
+   
+   return RAJA::tuple_cat(
+     RAJA::make_tuple(eknl1),
+     pknls1,
+     RAJA::make_tuple(eknl2, eknl3),
+     pknls2,
+     RAJA::make_tuple(eknl4),
+     pknls3,
+     RAJA::make_tuple(eknl5));
+}
+
+/******************************************/
+
+RAJA_STORAGE
+void CalcSoundSpeedForElems(Domain* domain,
 /******************************************/
 
 RAJA_STORAGE
@@ -2229,8 +2364,17 @@ void EvalEOSForElems(Domain* domain,
                          p_cut, e_cut, q_cut, emin,
                          rho0, eosvmax,
                          regISet);
+   const auto energy_fused_lambda = CalcEnergyForElemsFusedLambda(domain, p_new_view, e_new_view, q_new_view, bvc_view, pbvc_view,
+                         p_old_view, compression_view, compHalfStep_view,
+                         vnewc_view, work_view, pHalfStep_view, pmin,
+                         p_cut, e_cut, q_cut, emin,
+                         rho0, eosvmax,
+                         regISet);
 
-   static auto fused_knl = RAJA::fuse(knl_tuple);
+
+ 
+   //static auto fused_knl = RAJA::fuse(knl_tuple);
+   
 
    //loop to add load imbalance based on region number 
    for(Int_t j = 0; j < rep; j++) {
