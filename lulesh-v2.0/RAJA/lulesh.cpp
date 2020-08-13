@@ -2223,7 +2223,14 @@ void EvalEOSForElems(Domain* domain,
                compHalfStep_view(ielem) = Real_t(0.) ;
             }
          } );
+   const auto knl_tuple = CalcEnergyForElems(domain, p_new_view, e_new_view, q_new_view, bvc_view, pbvc_view,
+                         p_old_view, compression_view, compHalfStep_view,
+                         vnewc_view, work_view, pHalfStep_view, pmin,
+                         p_cut, e_cut, q_cut, emin,
+                         rho0, eosvmax,
+                         regISet);
 
+   auto fused_knl = RAJA::fuse(knl_tuple);
 
    //loop to add load imbalance based on region number 
    for(Int_t j = 0; j < rep; j++) {
@@ -2239,16 +2246,7 @@ void EvalEOSForElems(Domain* domain,
       if ( eosvmax != Real_t(0.) ) {
          knl4();
       }
-
-      auto knl_tuple = CalcEnergyForElems(domain, p_new_view, e_new_view, q_new_view, bvc_view, pbvc_view,
-                         p_old_view, compression_view, compHalfStep_view,
-                         vnewc_view, work_view, pHalfStep_view, pmin,
-                         p_cut, e_cut, q_cut, emin,
-                         rho0, eosvmax,
-                         regISet);
-
-      auto fused_knl = RAJA::fuse(knl_tuple);
-
+ 
       camp::get<0>(knl_tuple)();
       camp::get<1>(knl_tuple)();
       camp::get<2>(knl_tuple)();
