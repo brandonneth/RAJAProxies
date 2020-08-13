@@ -2246,7 +2246,9 @@ void EvalEOSForElems(Domain* domain,
       if ( eosvmax != Real_t(0.) ) {
          knl4();
       }
- 
+
+      fused_knl();
+      /* 
       camp::get<0>(knl_tuple)();
       camp::get<1>(knl_tuple)();
       camp::get<2>(knl_tuple)();
@@ -2258,6 +2260,7 @@ void EvalEOSForElems(Domain* domain,
       camp::get<8>(knl_tuple)();
       camp::get<9>(knl_tuple)();
       camp::get<10>(knl_tuple)();
+      */
    }
 
    RAJA::forall<mat_exec_policy>(regISet,
