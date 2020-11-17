@@ -14,10 +14,10 @@ cmake_minimum_required(VERSION 3.4)
 
 project(RajaProxies LANGUAGES CXX)
 
-option(ENABLE_LULESH_ONE "Build LULESH v1.0" On)
+option(ENABLE_LULESH_ONE "Build LULESH v1.0" Off)
 option(ENABLE_LULESH_TWO "Build LULESH v2.0" On)
-option(ENABLE_KRIPKE "Build Kripke" On)
-option(ENABLE_COMD "Build CoMD" On)
+option(ENABLE_KRIPKE "Build Kripke" Off)
+option(ENABLE_COMD "Build CoMD" Off)
 
 set (ENABLE_TESTS Off CACHE Bool "Don't build tests")
 set (ENABLE_EXAMPLES Off CACHE Bool "Don't build examples")
@@ -27,6 +27,7 @@ if (PROXIES_ENABLE_WARNINGS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
 endif()
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++17 -fconcepts-ts")
 ################################
 # BLT
 ################################
@@ -42,7 +43,7 @@ if (NOT EXISTS ${PROJECT_SOURCE_DIR}/blt/SetupBLT.cmake)
 endif()
 include(${PROJECT_SOURCE_DIR}/blt/SetupBLT.cmake)
 
-add_subdirectory(tpl/RAJA)
+add_subdirectory(../RAJA build)
 
 if (ENABLE_DOCUMENTATION)
   add_subdirectory(docs)
