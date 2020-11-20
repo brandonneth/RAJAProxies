@@ -1963,7 +1963,7 @@ void CalcPressureForElems(Real_t* p_new, Real_t* bvc,
                           Real_t* compression, Real_t *vnewc,
                           Real_t pmin,
                           Real_t p_cut, Real_t eosvmax,
-                          LULESH_ISET& regISet)
+                          LULESH_ELEMSET& regISet)
 {
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
@@ -2000,7 +2000,7 @@ void CalcEnergyForElems(Domain* domain,
                         Real_t q_cut, Real_t emin,
                         Real_t rho0,
                         Real_t eosvmax,
-                        LULESH_ISET& regISet)
+                        LULESH_ELEMSET& regISet)
 {
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
@@ -2123,7 +2123,7 @@ void CalcSoundSpeedForElems(Domain* domain,
                             Real_t *vnewc, Real_t rho0, Real_t *enewc,
                             Real_t *pnewc, Real_t *pbvc,
                             Real_t *bvc, Real_t RAJA_UNUSED_ARG(ss4o3),
-                            LULESH_ISET& regISet)
+                            LULESH_ELEMSET& regISet)
 {
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
@@ -2160,7 +2160,7 @@ void EvalEOSForElems(Domain* domain,
    Real_t emin    = domain->emin() ;
    Real_t rho0    = domain->refdens() ;
 
-   LULESH_ISET& regISet = domain->getRegionISet(reg_num);
+   LULESH_ELEMSET& regISet = domain->getRegionISet(reg_num);
  
    //loop to add load imbalance based on region number 
    for(Int_t j = 0; j < rep; j++) {

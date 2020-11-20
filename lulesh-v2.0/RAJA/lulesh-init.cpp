@@ -42,7 +42,23 @@ Domain::Domain(Int_t numRanks, Index_t colLoc,
    m_regElemSize(0),
    m_regNumList(0),
    m_regElemlist(0),
-   m_perm(0)
+   m_perm(0),
+   //this works for using View, not necessarily for View &
+   x(0,nx*nx*nx),
+   y(0,nx*nx*nx),
+   z(0,nx*nx*nx),
+   xd(0,nx*nx*nx),
+   yd(0,nx*nx*nx),
+   zd(0,nx*nx*nx),
+   xdd(0,nx*nx*nx),
+   ydd(0,nx*nx*nx),
+   zdd(0,nx*nx*nx),
+   fx(0,nx*nx*nx),
+   fy(0,nx*nx*nx),
+   fz(0,nx*nx*nx),
+   nodalMass(0,nx*nx*nx),
+   m_domElemISet(0,nx*nx*nx),
+   delv(0,nx*nx*nx)
 #if defined(OMP_FINE_SYNC)
    ,
    m_nodeElemStart(0),
@@ -491,7 +507,8 @@ Domain::CreateMeshIndexSets()
 {
    // leave nodes and elems in canonical ordering for now...
    m_domNodeISet.push_back( RAJA::RangeSegment(0, numNode()) );
-   m_domElemISet.push_back( RAJA::RangeSegment(0, numElem()) );
+   //m_domElemISet.push_back( RAJA::RangeSegment(0, numElem()) );
+   m_domElemISet = RAJA::RangeSegment(0, numElem());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -519,8 +536,7 @@ Domain::CreateRegionIndexSets(Int_t nr, Int_t balance)
          nextIndex++;
       }
       regElemSize(0) = numElem();
-      m_domRegISet.resize(numReg());
-      m_domRegISet[0].push_back( RAJA::RangeSegment(0, regElemSize(0)) ) ;
+      m_domRegISet.push_back( RAJA::RangeSegment(0, regElemSize(0)) ) ;
       m_domElemRegISet.push_back( RAJA::RangeSegment(0, regElemSize(0)) ) ;
 #if !defined(LULESH_LIST_INDEXSET)
       for (int i=0; i<numElem(); ++i) {
@@ -614,12 +630,11 @@ Domain::CreateRegionIndexSets(Int_t nr, Int_t balance)
       }
 
       // Create HybridISets for regions
-      m_domRegISet.resize(numReg());
       int elemCount = 0 ;
       for (int r = 0; r < numReg(); ++r) {
 #if !defined(LULESH_LIST_INDEXSET)
          memcpy( &perm(elemCount), regElemlist(r), sizeof(Index_t)*regElemSize(r) ) ;
-         m_domRegISet[r].push_back( RAJA::RangeSegment(elemCount, elemCount+regElemSize(r)) );
+         m_domRegISet.push_back( RAJA::RangeSegment(elemCount, elemCount+regElemSize(r)) );
          m_domElemRegISet.push_back( RAJA::RangeSegment(elemCount, elemCount+regElemSize(r)) ) ;
          elemCount += regElemSize(r) ;
 #else

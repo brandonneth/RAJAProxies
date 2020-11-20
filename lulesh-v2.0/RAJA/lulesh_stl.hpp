@@ -129,6 +129,7 @@ real10 FABS(real10 arg) { return fabsl(arg) ; }
  *  "Real_t &z(Index_t idx) { return m_coord[idx].z ; }"
  */
 
+   using ViewType = RAJA::View<Real_t, RAJA::Layout<1>>;
 class Domain {
 
    public:
@@ -147,23 +148,29 @@ class Domain {
 
    void AllocateNodePersistent(Int_t numNode) // Node-centered
    {
-      m_x.reserve(numNode);  // coordinates
-      m_y.reserve(numNode);
-      m_z.reserve(numNode);
+      Real_t * xMem = new Real_t[numNode];
+      x.set_data(xMem);
+      Real_t * yMem = new Real_t[numNode];
+      y.set_data(yMem);
+      Real_t * zMem = new Real_t[numNode];
+      z.set_data(zMem);
+      
+      Real_t * xdMem = new Real_t[numNode];
+      xd.set_data(xdMem);
+      Real_t * ydMem = new Real_t[numNode];
+      yd.set_data(ydMem); 
+      Real_t * zdMem = new Real_t[numNode];
+      zd.set_data(zdMem); 
 
-      m_xd.reserve(numNode); // velocities
-      m_yd.reserve(numNode);
-      m_zd.reserve(numNode);
-
-      m_xdd.reserve(numNode); // accelerations
-      m_ydd.reserve(numNode);
-      m_zdd.reserve(numNode);
-
-      m_fx.reserve(numNode);  // forces
-      m_fy.reserve(numNode);
-      m_fz.reserve(numNode);
-
-      m_nodalMass.reserve(numNode);  // mass
+      xdd.set_data(new Real_t[numNode]); 
+      ydd.set_data(new Real_t[numNode]); 
+      zdd.set_data(new Real_t[numNode]); 
+      
+      fx.set_data(new Real_t[numNode]);
+      fy.set_data(new Real_t[numNode]);
+      fz.set_data(new Real_t[numNode]);
+      
+      nodalMass.set_data(new Real_t[numNode]);
    }
 
    void AllocateElemPersistent(Int_t numElem) // Elem-centered
@@ -190,7 +197,8 @@ class Domain {
       m_v.reserve(numElem);
 
       m_volo.reserve(numElem);
-      m_delv.reserve(numElem);
+
+      delv.set_data(new Real_t[numElem]);
       m_vdov.reserve(numElem);
 
       m_arealg.reserve(numElem);
@@ -256,27 +264,27 @@ class Domain {
    // Node-centered
 
    // Nodal coordinates
-   Real_t& x(Index_t idx)    { return m_x[idx] ; }
-   Real_t& y(Index_t idx)    { return m_y[idx] ; }
-   Real_t& z(Index_t idx)    { return m_z[idx] ; }
-
+   ViewType x;
+   ViewType y;
+   ViewType z;
+ 
    // Nodal velocities
-   Real_t& xd(Index_t idx)   { return m_xd[idx] ; }
-   Real_t& yd(Index_t idx)   { return m_yd[idx] ; }
-   Real_t& zd(Index_t idx)   { return m_zd[idx] ; }
+   ViewType xd;
+   ViewType yd;
+   ViewType zd;
 
    // Nodal accelerations
-   Real_t& xdd(Index_t idx)  { return m_xdd[idx] ; }
-   Real_t& ydd(Index_t idx)  { return m_ydd[idx] ; }
-   Real_t& zdd(Index_t idx)  { return m_zdd[idx] ; }
+   ViewType xdd;
+   ViewType ydd;
+   ViewType zdd;
 
    // Nodal forces
-   Real_t& fx(Index_t idx)   { return m_fx[idx] ; }
-   Real_t& fy(Index_t idx)   { return m_fy[idx] ; }
-   Real_t& fz(Index_t idx)   { return m_fz[idx] ; }
+   ViewType fx;
+   ViewType fy;
+   ViewType fz;
 
    // Nodal mass
-   Real_t& nodalMass(Index_t idx) { return m_nodalMass[idx] ; }
+   ViewType nodalMass;
 
    //
    // Element-centered
@@ -334,8 +342,7 @@ class Domain {
 
    // Relative volume
    Real_t& v(Index_t idx)          { return m_v[idx] ; }
-   Real_t& delv(Index_t idx)       { return m_delv[idx] ; }
-
+   ViewType delv;
    // Reference volume
    Real_t& volo(Index_t idx)       { return m_volo[idx] ; }
 
@@ -428,10 +435,10 @@ class Domain {
    // Accessors for index sets
    //
    LULESH_ISET& getNodeISet()    { return m_domNodeISet ; }
-   LULESH_ISET& getElemISet()    { return m_domElemISet ; }
+   LULESH_ELEMSET& getElemISet()    { return m_domElemISet ; }
    LULESH_ISET& getElemRegISet() { return m_domElemRegISet ; }
 
-   LULESH_ISET& getRegionISet(int r) { return m_domRegISet[r] ; }
+   LULESH_ELEMSET& getRegionISet(int r) { return m_domRegISet[r] ; }
 
    LULESH_ISET& getXSymNodeISet() { return m_domXSymNodeISet ; }
    LULESH_ISET& getYSymNodeISet() { return m_domYSymNodeISet ; }
@@ -469,7 +476,7 @@ class Domain {
 
    /* mesh-based index sets */
    LULESH_ISET m_domNodeISet ;
-   LULESH_ISET m_domElemISet ;
+   LULESH_ELEMSET m_domElemISet ;
    LULESH_ISET m_domElemRegISet ;
 
    LULESH_ISET m_domXSymNodeISet ;
@@ -477,10 +484,10 @@ class Domain {
    LULESH_ISET m_domZSymNodeISet ;
 
    /* region-based index sets */
-   std::vector<LULESH_ISET> m_domRegISet;
+   std::vector<LULESH_ELEMSET> m_domRegISet;
 
    /* Node-centered */
-   std::vector<Real_t> m_x ;  /* coordinates */
+   std::vector<Real_t> m_x ;
    std::vector<Real_t> m_y ;
    std::vector<Real_t> m_z ;
 
