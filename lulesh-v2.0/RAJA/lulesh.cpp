@@ -1958,7 +1958,7 @@ void CalcQForElems(Domain* domain)
 /******************************************/
 
 RAJA_STORAGE
-void CalcPressureForElems(ViewType p_new, ViewType bvc,
+auto CalcPressureForElems(ViewType p_new, ViewType bvc,
                           ViewType pbvc, ViewType e_old,
                           ViewType compression, ViewType vnewc,
                           Real_t pmin,
@@ -1971,7 +1971,7 @@ void CalcPressureForElems(ViewType p_new, ViewType bvc,
       bvc(ielem) = c1s * (compression(ielem) + Real_t(1.));
       pbvc(ielem) = c1s;
    } );
-   p1();
+   //p1();
    auto p2 = RAJA::make_forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
       p_new(ielem) = bvc(ielem) * e_old(ielem) ;
@@ -1985,13 +1985,14 @@ void CalcPressureForElems(ViewType p_new, ViewType bvc,
       if    (p_new(ielem)       <  pmin)
          p_new(ielem)   = pmin ;
    } );
-   p2();
+   //p2();
+   return RAJA::make_tuple(p1,p2);
 }
 
 /******************************************/
 
 RAJA_STORAGE
-void CalcEnergyForElems(Domain* domain,
+auto CalcEnergyForElems(Domain* domain,
                         ViewType p_new, ViewType e_new, ViewType q_new,
                         ViewType bvc, ViewType pbvc,
                         ViewType p_old,
@@ -2013,8 +2014,8 @@ void CalcEnergyForElems(Domain* domain,
          e_new(ielem) = emin ;
       }
    } );
-   e1();
-   CalcPressureForElems(pHalfStep, bvc, pbvc, e_new, compHalfStep, vnewc,
+   //e1();
+   auto p1 = CalcPressureForElems(pHalfStep, bvc, pbvc, e_new, compHalfStep, vnewc,
                         pmin, p_cut, eosvmax, 
                         regISet);
 
@@ -2042,7 +2043,7 @@ void CalcEnergyForElems(Domain* domain,
          * (  Real_t(3.0)*(p_old(ielem)     + domain->q(ielem))
               - Real_t(4.0)*(pHalfStep(ielem) + q_new(ielem))) ;
    } );
-   e2();
+   //e2();
 
    auto e3 = RAJA::make_forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
@@ -2055,8 +2056,8 @@ void CalcEnergyForElems(Domain* domain,
          e_new(ielem) = emin ;
       }
    } );
-   e3();
-   CalcPressureForElems(p_new, bvc, pbvc, e_new, compression, vnewc,
+   //e3();
+   auto p2 = CalcPressureForElems(p_new, bvc, pbvc, e_new, compression, vnewc,
                         pmin, p_cut, eosvmax, 
                         regISet);
 
@@ -2092,8 +2093,8 @@ void CalcEnergyForElems(Domain* domain,
          e_new(ielem) = emin ;
       }
    } );
-   e4();
-   CalcPressureForElems(p_new, bvc, pbvc, e_new, compression, vnewc,
+   // e4();
+   auto p3 = CalcPressureForElems(p_new, bvc, pbvc, e_new, compression, vnewc,
                         pmin, p_cut, eosvmax, 
                         regISet);
 
@@ -2114,8 +2115,10 @@ void CalcEnergyForElems(Domain* domain,
          if (FABS(q_new(ielem)) < q_cut) q_new(ielem) = Real_t(0.) ;
       }
    } );
-   e5();
-   return ;
+   //e5();
+   //e1 p1 e2 e3 p2 e4 p3 e5
+   return RAJA::tuple_cat(RAJA::make_tuple(e1), p1, RAJA::make_tuple(e2,e3), p2, RAJA::make_tuple(e4), p3, RAJA::make_tuple(e5));
+   //return ;
 }
 
 /******************************************/
@@ -2203,6 +2206,15 @@ void EvalEOSForElems(Domain* domain,
                compHalfStep_view(ielem) = Real_t(0.) ;
             }
          } );  //loop to add load imbalance based on region number 
+
+   auto knls = CalcEnergyForElems(domain, p_new_view, e_new_view, q_new_view, bvc_view, pbvc_view,
+                         p_old_view, compression_view, compHalfStep_view,
+                         vnewc_view, work_view, pHalfStep_view, pmin,
+                         p_cut, e_cut, q_cut, emin,
+                         rho0, eosvmax,
+                         regISet);
+
+
    for(Int_t j = 0; j < rep; j++) {
   /*
       RAJA::forall<mat_exec_policy>(regISet,
@@ -2251,12 +2263,17 @@ void EvalEOSForElems(Domain* domain,
          knl4();
       }
 
-      CalcEnergyForElems(domain, p_new_view, e_new_view, q_new_view, bvc_view, pbvc_view,
-                         p_old_view, compression_view, compHalfStep_view,
-                         vnewc_view, work_view, pHalfStep_view, pmin,
-                         p_cut, e_cut, q_cut, emin,
-                         rho0, eosvmax,
-                         regISet);
+      camp::get<0>(knls)();
+      camp::get<1>(knls)();
+      camp::get<2>(knls)();
+      camp::get<3>(knls)();
+      camp::get<4>(knls)();
+      camp::get<5>(knls)();
+      camp::get<6>(knls)();
+      camp::get<7>(knls)();
+      camp::get<8>(knls)();
+      camp::get<9>(knls)();
+      camp::get<10>(knls)();
    }
 
    RAJA::forall<mat_exec_policy>(regISet,
