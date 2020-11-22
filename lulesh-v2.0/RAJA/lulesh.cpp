@@ -2214,7 +2214,7 @@ void EvalEOSForElems(Domain* domain,
                          rho0, eosvmax,
                          regISet);
 
-   auto fused = RAJA::fuse(camp::get<0>(knls), camp::get<1>(knls), camp::get<2>(knls), camp::get<4>(knls));
+   auto fused = RAJA::fuse(camp::get<0>(knls), camp::get<1>(knls), camp::get<2>(knls), camp::get<3>(knls));
 
    for(Int_t j = 0; j < rep; j++) {
   /*
