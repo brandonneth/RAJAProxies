@@ -2264,17 +2264,19 @@ void EvalEOSForElems(Domain* domain,
          knl4();
       }
 
-      camp::get<0>(knls)();
-      camp::get<1>(knls)();
-      camp::get<2>(knls)();
-      camp::get<3>(knls)();
-      camp::get<4>(knls)();
-      camp::get<5>(knls)();
-      camp::get<6>(knls)();
-      camp::get<7>(knls)();
-      camp::get<8>(knls)();
-      camp::get<9>(knls)();
-      camp::get<10>(knls)();
+      fused();
+
+      //camp::get<0>(knls)();
+      //camp::get<1>(knls)();
+      //camp::get<2>(knls)();
+      //camp::get<3>(knls)();
+      //camp::get<4>(knls)();
+      //camp::get<5>(knls)();
+     // camp::get<6>(knls)();
+      //camp::get<7>(knls)();
+      //camp::get<8>(knls)();
+      //camp::get<9>(knls)();
+      //camp::get<10>(knls)();
    }
 
    RAJA::forall<mat_exec_policy>(regISet,
