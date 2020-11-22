@@ -2013,14 +2013,27 @@ auto CalcEnergyForElems(Domain* domain,
       if (e_new(ielem)  < emin ) {
          e_new(ielem) = emin ;
       }
-   } );
+   
    //e1();
-   auto p1 = CalcPressureForElems(pHalfStep, bvc, pbvc, e_new, compHalfStep, vnewc,
-                        pmin, p_cut, eosvmax, 
-                        regISet);
 
-   auto e2 = RAJA::make_forall<mat_exec_policy>(regISet,
-        [=] LULESH_DEVICE (int ielem) {
+  
+       Real_t const  c1s = Real_t(2.0)/Real_t(3.0) ;
+      bvc(ielem) = c1s * (compHalfStep(ielem) + Real_t(1.));
+      pbvc(ielem) = c1s;
+  
+   //p1();
+   
+      pHalfStep(ielem) = bvc(ielem) * e_new(ielem) ;
+
+      if    (FABS(pHalfStep(ielem)) <  p_cut   )
+         pHalfStep(ielem) = Real_t(0.0) ;
+
+      if    ( vnewc(ielem) >= eosvmax ) /* impossible condition here? */
+         pHalfStep(ielem) = Real_t(0.0) ;
+
+      if    (pHalfStep(ielem)       <  pmin)
+         pHalfStep(ielem)   = pmin ;
+  
       Real_t vhalf = Real_t(1.) / (Real_t(1.) + compHalfStep(ielem)) ;
 
       if ( domain->delv(ielem) > Real_t(0.) ) {
@@ -2117,7 +2130,7 @@ auto CalcEnergyForElems(Domain* domain,
    } );
    //e5();
    //e1 p1 e2 e3 p2 e4 p3 e5
-   return RAJA::tuple_cat(RAJA::make_tuple(e1), p1, RAJA::make_tuple(e2,e3), p2, RAJA::make_tuple(e4), p3, RAJA::make_tuple(e5));
+   return RAJA::tuple_cat(RAJA::make_tuple(e1),  RAJA::make_tuple(e3), p2, RAJA::make_tuple(e4), p3, RAJA::make_tuple(e5));
    //return ;
 }
 
@@ -2214,7 +2227,6 @@ void EvalEOSForElems(Domain* domain,
                          rho0, eosvmax,
                          regISet);
 
-   auto fused = RAJA::fuse(knls);
 
    for(Int_t j = 0; j < rep; j++) {
   /*
@@ -2264,16 +2276,15 @@ void EvalEOSForElems(Domain* domain,
          knl4();
       }
 
-      fused();
 
-      //camp::get<0>(knls)();
-      //camp::get<1>(knls)();
-      //camp::get<2>(knls)();
-      //camp::get<3>(knls)();
-      //camp::get<4>(knls)();
-      //camp::get<5>(knls)();
-     // camp::get<6>(knls)();
-      //camp::get<7>(knls)();
+      camp::get<0>(knls)();
+      camp::get<1>(knls)();
+      camp::get<2>(knls)();
+      camp::get<3>(knls)();
+      camp::get<4>(knls)();
+      camp::get<5>(knls)();
+      camp::get<6>(knls)();
+      camp::get<7>(knls)();
       //camp::get<8>(knls)();
       //camp::get<9>(knls)();
       //camp::get<10>(knls)();
