@@ -2264,10 +2264,7 @@ void EvalEOSForElems(Domain* domain,
          knl4();
       }
 
-      camp::get<0>(knls)();
-      camp::get<1>(knls)();
-      camp::get<2>(knls)();
-      camp::get<3>(knls)();
+      fused();
       camp::get<4>(knls)();
       camp::get<5>(knls)();
       camp::get<6>(knls)();
