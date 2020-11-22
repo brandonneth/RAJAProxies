@@ -1967,6 +1967,8 @@ auto CalcPressureForElems(ViewType p_new, ViewType bvc,
 {
    auto p1 =RAJA::make_forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
+      
+
       Real_t const  c1s = Real_t(2.0)/Real_t(3.0) ;
       bvc(ielem) = c1s * (compression(ielem) + Real_t(1.));
       pbvc(ielem) = c1s;
@@ -2214,8 +2216,9 @@ void EvalEOSForElems(Domain* domain,
                          rho0, eosvmax,
                          regISet);
 
-   auto fused = RAJA::fuse(camp::get<0>(knls), camp::get<1>(knls), camp::get<2>(knls), camp::get<4>(knls));
 
+
+      auto fused = RAJA::fuse(camp::get<0>(knls), camp::get<1>(knls), camp::get<2>(knls), camp::get<3>(knls));
    for(Int_t j = 0; j < rep; j++) {
   /*
       RAJA::forall<mat_exec_policy>(regISet,
@@ -2264,7 +2267,12 @@ void EvalEOSForElems(Domain* domain,
          knl4();
       }
 
+  
       fused();
+      //camp::get<0>(knls)();
+      //camp::get<1>(knls)();
+      //camp::get<2>(knls)();
+      //camp::get<3>(knls)();
       camp::get<4>(knls)();
       camp::get<5>(knls)();
       camp::get<6>(knls)();
