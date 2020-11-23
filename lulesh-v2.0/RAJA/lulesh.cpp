@@ -2011,14 +2011,36 @@ void CalcEnergyForElems(Domain* domain,
       if (e_new[ielem]  < emin ) {
          e_new[ielem] = emin ;
       }
+
    } );
 
-   CalcPressureForElems(pHalfStep, bvc, pbvc, e_new, compHalfStep, vnewc,
-                        pmin, p_cut, eosvmax, 
-                        regISet);
+   RAJA::forall<mat_exec_policy>(regISet,
+        [=] LULESH_DEVICE (int ielem) {
 
+      Real_t const  c1s = Real_t(2.0)/Real_t(3.0) ;
+      bvc[ielem] = c1s * (compHalfStep[ielem] + Real_t(1.));
+      pbvc[ielem] = c1s;
+
+/*
+   } );
+   RAJA::forall<mat_exec_policy>(regISet,
+        [=] LULESH_DEVICE (int ielem) {
+*/
+      pHalfStep[ielem] = bvc[ielem] * e_new[ielem] ;
+
+      if    (FABS(pHalfStep[ielem]) <  p_cut   )
+         pHalfStep[ielem] = Real_t(0.0) ;
+
+      if    ( vnewc[ielem] >= eosvmax ) /* impossible condition here? */
+         pHalfStep[ielem] = Real_t(0.0) ;
+
+      if    (pHalfStep[ielem]       <  pmin)
+         pHalfStep[ielem]   = pmin ;
+/*
+   } );
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
+*/
       Real_t vhalf = Real_t(1.) / (Real_t(1.) + compHalfStep[ielem]) ;
 
       if ( domain->delv(ielem) > Real_t(0.) ) {
@@ -2040,10 +2062,11 @@ void CalcEnergyForElems(Domain* domain,
       e_new[ielem] = e_new[ielem] + Real_t(0.5) * domain->delv(ielem)
          * (  Real_t(3.0)*(p_old[ielem]     + domain->q(ielem))
               - Real_t(4.0)*(pHalfStep[ielem] + q_new[ielem])) ;
-   } );
 
+   } );
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
+
       e_new[ielem] += Real_t(0.5) * work[ielem];
 
       if (FABS(e_new[ielem]) < e_cut) {
@@ -2052,14 +2075,34 @@ void CalcEnergyForElems(Domain* domain,
       if (     e_new[ielem]  < emin ) {
          e_new[ielem] = emin ;
       }
+
    } );
+   RAJA::forall<mat_exec_policy>(regISet,
+        [=] LULESH_DEVICE (int ielem) {
 
-   CalcPressureForElems(p_new, bvc, pbvc, e_new, compression, vnewc,
-                        pmin, p_cut, eosvmax, 
-                        regISet);
+      Real_t const  c1s = Real_t(2.0)/Real_t(3.0) ;
+      bvc[ielem] = c1s * (compression[ielem] + Real_t(1.));
+      pbvc[ielem] = c1s;
+/*
+   } );
+   RAJA::forall<mat_exec_policy>(regISet,
+        [=] LULESH_DEVICE (int ielem) {
+*/
+      p_new[ielem] = bvc[ielem] * e_new[ielem] ;
 
+      if    (FABS(p_new[ielem]) <  p_cut   )
+         p_new[ielem] = Real_t(0.0) ;
+
+      if    ( vnewc[ielem] >= eosvmax ) /* impossible condition here? */
+         p_new[ielem] = Real_t(0.0) ;
+
+      if    (p_new[ielem]       <  pmin)
+         p_new[ielem]   = pmin ;
+/*
+   } );
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
+*/
       const Real_t sixth = Real_t(1.0) / Real_t(6.0) ;
       Real_t q_tilde ;
 
@@ -2089,14 +2132,35 @@ void CalcEnergyForElems(Domain* domain,
       if (     e_new[ielem]  < emin ) {
          e_new[ielem] = emin ;
       }
-   } );
 
-   CalcPressureForElems(p_new, bvc, pbvc, e_new, compression, vnewc,
-                        pmin, p_cut, eosvmax, 
-                        regISet);
+   } );
+   RAJA::forall<mat_exec_policy>(regISet,
+        [=] LULESH_DEVICE (int ielem) {
+
+      Real_t const  c1s2 = Real_t(2.0)/Real_t(3.0) ;
+      bvc[ielem] = c1s2 * (compression[ielem] + Real_t(1.));
+      pbvc[ielem] = c1s2;
+/*
+   } );
 
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
+*/
+      p_new[ielem] = bvc[ielem] * e_new[ielem] ;
+
+      if    (FABS(p_new[ielem]) <  p_cut   )
+         p_new[ielem] = Real_t(0.0) ;
+
+      if    ( vnewc[ielem] >= eosvmax ) /* impossible condition here? */
+         p_new[ielem] = Real_t(0.0) ;
+
+      if    (p_new[ielem]       <  pmin)
+         p_new[ielem]   = pmin ;
+/*
+   } );
+   RAJA::forall<mat_exec_policy>(regISet,
+        [=] LULESH_DEVICE (int ielem) {
+*/
       if ( domain->delv(ielem) <= Real_t(0.) ) {
          Real_t ssc = ( pbvc[ielem] * e_new[ielem]
             + vnewc[ielem] * vnewc[ielem] * bvc[ielem] * p_new[ielem] ) / rho0;
