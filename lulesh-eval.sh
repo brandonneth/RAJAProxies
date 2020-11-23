@@ -1,6 +1,6 @@
 #!/bin/bash
-
-for i in $(seq 0 7)
+source ~/.bashrc
+for i in $(seq 0 8)
 do
 	echo Evaluating LULESH variant number $i
         git checkout variant$i
