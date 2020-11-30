@@ -2062,11 +2062,11 @@ void CalcEnergyForElems(Domain* domain,
       e_new[ielem] = e_new[ielem] + Real_t(0.5) * domain->delv(ielem)
          * (  Real_t(3.0)*(p_old[ielem]     + domain->q(ielem))
               - Real_t(4.0)*(pHalfStep[ielem] + q_new[ielem])) ;
-
+/*
    } );
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {  
-
+*/
       e_new[ielem] += Real_t(0.5) * work[ielem];
 
       if (FABS(e_new[ielem]) < e_cut) {
