@@ -58,7 +58,7 @@ typedef RAJA::seq_segit              Segment_Iter;
 typedef RAJA::omp_parallel_for_exec  Segment_Exec;
 
 typedef RAJA::ExecPolicy<Segment_Iter, Segment_Exec> node_exec_policy;
-typedef RAJA::loop_exec elem_exec_policy;
+typedef RAJA::omp_parallel_for_exec elem_exec_policy;
 typedef RAJA::omp_parallel_for_exec mat_exec_policy;
 typedef RAJA::ExecPolicy<Segment_Iter, Segment_Exec> symnode_exec_policy;
 
