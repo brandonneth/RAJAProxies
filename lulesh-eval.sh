@@ -1,11 +1,14 @@
 #!/bin/bash
 source ~/.bashrc
-for i in $(seq 0 8)
+NUMITERS=512
+PROBLEMSIZE=$1
+
+for i in 0 2 6 7 9
 do
 	echo Evaluating LULESH variant number $i
-        git checkout variant$i
-	cd build
-	make
-	./bin/lulesh-v2.0-RAJA-seq.exe > ../lulesh_variant$i.out
-        cd ..
+        echo git checkout variant$i
+	echo cd build
+	echo make
+	echo "./bin/lulesh-v2.0-RAJA-omp.exe -i ${NUMITERS} -s ${PROBLEMSIZE} > ../v${i}_i${NUMITERS}_s${PROBLEMSIZE}.out"
+        echo cd ..
 done
