@@ -2011,12 +2011,12 @@ void CalcEnergyForElems(Domain* domain,
       if (e_new[ielem]  < emin ) {
          e_new[ielem] = emin ;
       }
-
+/*
    } );
 
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
-
+*/
       Real_t const  c1s = Real_t(2.0)/Real_t(3.0) ;
       bvc[ielem] = c1s * (compHalfStep[ielem] + Real_t(1.));
       pbvc[ielem] = c1s;
@@ -2075,12 +2075,12 @@ void CalcEnergyForElems(Domain* domain,
       if (     e_new[ielem]  < emin ) {
          e_new[ielem] = emin ;
       }
-
+/*
    } );
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
-
-      Real_t const  c1s = Real_t(2.0)/Real_t(3.0) ;
+*/
+      //Real_t const  c1s = Real_t(2.0)/Real_t(3.0) ;
       bvc[ielem] = c1s * (compression[ielem] + Real_t(1.));
       pbvc[ielem] = c1s;
 /*
@@ -2132,11 +2132,11 @@ void CalcEnergyForElems(Domain* domain,
       if (     e_new[ielem]  < emin ) {
          e_new[ielem] = emin ;
       }
-
+/*
    } );
    RAJA::forall<mat_exec_policy>(regISet,
         [=] LULESH_DEVICE (int ielem) {
-
+*/
       Real_t const  c1s2 = Real_t(2.0)/Real_t(3.0) ;
       bvc[ielem] = c1s2 * (compression[ielem] + Real_t(1.));
       pbvc[ielem] = c1s2;
