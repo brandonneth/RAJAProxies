@@ -28,6 +28,8 @@ if (PROXIES_ENABLE_WARNINGS)
 endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++17")
+set(BLT_CXX_STD "c++17" CACHE STRING "Version of C++ Standard")
+
 ################################
 # BLT
 ################################
@@ -55,6 +57,7 @@ if (ENABLE_LULESH_ONE)
 endif ()
 
 if (ENABLE_LULESH_TWO)
+  set(BLT_CXX_STD "c++17" CACHE STRING "Version of C++ Standard")
   message(STATUS "Building LULESH v2.0")
   add_subdirectory(lulesh-v2.0)
 endif ()
